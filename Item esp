@@ -1,10 +1,10 @@
---// Item ESP with Tracers (Different Colors)
+--// Item + Survivor/Killer ESP
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 
--- Items and their ESP colors
+-- Item colors
 local itemColors = {
     ["BloxyCola"] = Color3.fromRGB(0, 0, 255),   -- Blue
     ["Medkit"] = Color3.fromRGB(0, 255, 0),      -- Green
@@ -13,8 +13,8 @@ local itemColors = {
 
 local tracers = {}
 
--- Function to create ESP
-local function createESP(obj)
+--// ITEM ESP
+local function createItemESP(obj)
     if not obj:IsA("Model") and not obj:IsA("Part") then return end
     if not itemColors[obj.Name] then return end
     if obj:FindFirstChild("ESP") then return end
@@ -31,7 +31,7 @@ local function createESP(obj)
     highlight.Adornee = obj
     highlight.Parent = obj
 
-    -- Find part for tracer
+    -- Part for tracer
     local part = obj:FindFirstChildWhichIsA("BasePart") or obj.PrimaryPart
     if not part then return end
 
@@ -39,16 +39,15 @@ local function createESP(obj)
     local line = Drawing.new("Line")
     line.Color = color
     line.Thickness = 1.5
-    line.Transparency = 1
     tracers[obj] = line
 
-    -- Update tracer every frame
+    -- Update
     RunService.RenderStepped:Connect(function()
-        if obj and part and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local itemPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+        if obj and part then
+            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
             if onScreen then
-                line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) -- bottom center
-                line.To = Vector2.new(itemPos.X, itemPos.Y)
+                line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                line.To = Vector2.new(pos.X, pos.Y)
                 line.Visible = true
             else
                 line.Visible = false
@@ -58,7 +57,7 @@ local function createESP(obj)
         end
     end)
 
-    -- Remove tracer if item destroyed
+    -- Cleanup
     obj.AncestryChanged:Connect(function(_, parent)
         if not parent and tracers[obj] then
             tracers[obj]:Remove()
@@ -67,14 +66,51 @@ local function createESP(obj)
     end)
 end
 
--- Add ESP to existing
-for _, child in ipairs(workspace:GetDescendants()) do
-    createESP(child)
+--// SURVIVOR / KILLER ESP
+local function createCharacterESP(char)
+    if char:FindFirstChild("ESP") then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    local color
+    if humanoid.Health > 131 then
+        color = Color3.fromRGB(255, 0, 0) -- Killer (Red)
+    else
+        color = Color3.fromRGB(255, 255, 255) -- Survivor (White)
+    end
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP"
+    highlight.FillColor = color
+    highlight.OutlineColor = Color3.fromRGB(0, 0, 0)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    highlight.Adornee = char
+    highlight.Parent = char
+
+    -- Update dynamically if HP changes
+    humanoid.HealthChanged:Connect(function(newHP)
+        if newHP > 131 then
+            highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Killer
+        else
+            highlight.FillColor = Color3.fromRGB(255, 255, 255) -- Survivor
+        end
+    end)
 end
 
--- Detect new items
+--// Hook into game
+for _, child in ipairs(workspace:GetDescendants()) do
+    createItemESP(child)
+    if child:IsA("Model") and child:FindFirstChildOfClass("Humanoid") then
+        createCharacterESP(child)
+    end
+end
+
 workspace.DescendantAdded:Connect(function(obj)
-    createESP(obj)
+    createItemESP(obj)
+    if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
+        createCharacterESP(obj)
+    end
 end)
 
-print("✅ Item ESP + Tracers Loaded (Cola=Blue, Medkit=Green, Generator=Yellow)")
+print("✅ ESP Loaded: Items + Survivors + Killers")
