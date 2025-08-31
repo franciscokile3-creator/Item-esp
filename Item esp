@@ -1,0 +1,80 @@
+--// Item ESP with Tracers (Different Colors)
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+
+-- Items and their ESP colors
+local itemColors = {
+    ["BloxyCola"] = Color3.fromRGB(0, 0, 255),   -- Blue
+    ["Medkit"] = Color3.fromRGB(0, 255, 0),      -- Green
+    ["Generator"] = Color3.fromRGB(255, 255, 0)  -- Yellow
+}
+
+local tracers = {}
+
+-- Function to create ESP
+local function createESP(obj)
+    if not obj:IsA("Model") and not obj:IsA("Part") then return end
+    if not itemColors[obj.Name] then return end
+    if obj:FindFirstChild("ESP") then return end
+
+    local color = itemColors[obj.Name]
+
+    -- Highlight
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP"
+    highlight.FillColor = color
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    highlight.Adornee = obj
+    highlight.Parent = obj
+
+    -- Find part for tracer
+    local part = obj:FindFirstChildWhichIsA("BasePart") or obj.PrimaryPart
+    if not part then return end
+
+    -- Tracer (Drawing API)
+    local line = Drawing.new("Line")
+    line.Color = color
+    line.Thickness = 1.5
+    line.Transparency = 1
+    tracers[obj] = line
+
+    -- Update tracer every frame
+    RunService.RenderStepped:Connect(function()
+        if obj and part and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local itemPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+            if onScreen then
+                line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) -- bottom center
+                line.To = Vector2.new(itemPos.X, itemPos.Y)
+                line.Visible = true
+            else
+                line.Visible = false
+            end
+        else
+            if line then line.Visible = false end
+        end
+    end)
+
+    -- Remove tracer if item destroyed
+    obj.AncestryChanged:Connect(function(_, parent)
+        if not parent and tracers[obj] then
+            tracers[obj]:Remove()
+            tracers[obj] = nil
+        end
+    end)
+end
+
+-- Add ESP to existing
+for _, child in ipairs(workspace:GetDescendants()) do
+    createESP(child)
+end
+
+-- Detect new items
+workspace.DescendantAdded:Connect(function(obj)
+    createESP(obj)
+end)
+
+print("✅ Item ESP + Tracers Loaded (Cola=Blue, Medkit=Green, Generator=Yellow)")
